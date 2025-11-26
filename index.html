@@ -1,0 +1,926 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8" />
+    <title>FinTrack — Aplikasi Keuangan Modern</title>
+
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.2/sql-wasm.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --color-background-dark: #1a1a1a;
+            --color-card-background: #282828;
+            --color-text-light: #e0e0e0;
+            --color-text-muted: #a0a0a0;
+            --color-accent-gold: #FFD700;
+            --color-accent-gold-dark: #CCAA00;
+            --color-input-border: #444444;
+            --color-input-background: #3a3a3a;
+            --color-table-header: #333333;
+            --color-border-subtle: #3a3a3a;
+            --color-success: #28a745;
+            --color-error: #dc2626;
+            --color-income: #28a745; /* Hijau */
+            --color-expense: #dc3545; /* Merah */
+        }
+
+        body { font-family: "Inter", sans-serif; padding: 40px; background: var(--color-background-dark); color: var(--color-text-light); margin: 0; display: flex; justify-content: center; min-height: 100vh; box-sizing: border-box; }
+        #app { width: 100%; max-width: 800px; }
+        h2 { font-size: 32px; font-weight: 800; margin-bottom: 30px; color: var(--color-accent-gold); text-align: center; letter-spacing: 1px; }
+        
+        /* DEFAULT CARD STYLE */
+        .card { background: var(--color-card-background); padding: 30px; margin-top: 30px; border-radius: 18px; box-shadow: 0 8px 25px rgba(0,0,0,0.4); border: 1px solid var(--color-border-subtle); transition: border-color 0.3s, box-shadow 0.3s; }
+        
+        /* DYNAMIC CARD STYLES */
+        .card.income-mode {
+            border: 2px solid var(--color-income);
+            box-shadow: 0 8px 25px rgba(40, 167, 69, 0.2);
+        }
+        .card.expense-mode {
+            border: 2px solid var(--color-expense);
+            box-shadow: 0 8px 25px rgba(220, 53, 69, 0.2);
+        }
+        
+        h3 { font-size: 24px; font-weight: 700; margin-bottom: 20px; color: var(--color-text-light); }
+        label { font-size: 14px; font-weight: 600; color: var(--color-text-muted); margin-top: 15px; display: block; }
+        input, select { width: 100%; padding: 14px; margin-top: 8px; margin-bottom: 18px; border: 1px solid var(--color-input-border); border-radius: 10px; font-size: 15px; background: var(--color-input-background); color: var(--color-text-light); transition: border-color 0.3s ease, box-shadow 0.3s ease, background 0.3s ease; -webkit-appearance: none; -moz-appearance: none; appearance: none; box-sizing: border-box; }
+        
+        /* DEFAULT INPUT FOCUS (GOLD) */
+        input:focus, select:focus { border-color: var(--color-accent-gold); box-shadow: 0 0 0 3px rgba(255, 215, 0, 0.3); background: #333333; outline: none; }
+        
+        /* INPUT FOCUS OVERRIDE FOR EXPENSE MODE (RED) */
+        .card.expense-mode input:focus, 
+        .card.expense-mode select:focus { 
+            border-color: var(--color-expense); 
+            box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.3); 
+        }
+
+        /* INPUT FOCUS OVERRIDE FOR INCOME MODE (GREEN) */
+        .card.income-mode input:focus, 
+        .card.income-mode select:focus { 
+            border-color: var(--color-income); 
+            box-shadow: 0 0 0 3px rgba(40, 167, 69, 0.3); 
+        }
+        
+        button { width: 100%; padding: 15px 20px; background: var(--color-accent-gold); border: none; color: var(--color-background-dark); border-radius: 10px; cursor: pointer; font-weight: 700; font-size: 16px; transition: background 0.3s ease, transform 0.2s ease; letter-spacing: 0.5px; margin-top: 10px; }
+        button:hover { background: var(--color-accent-gold-dark); transform: translateY(-2px); box-shadow: 0 4px 10px rgba(255, 215, 0, 0.2); }
+        .btn-secondary { background: var(--color-input-background); color: var(--color-accent-gold); border: 1px solid var(--color-accent-gold); }
+        .btn-secondary:hover { background: #3a3a3a; color: var(--color-accent-gold-dark); }
+        
+        /* BUTTON OVERRIDE FOR EXPENSE MODE (RED) */
+        .card.expense-mode button:not(.btn-secondary) {
+            background: var(--color-expense);
+            color: white;
+        }
+        .card.expense-mode button:not(.btn-secondary):hover {
+            background: #cc2233; 
+        }
+
+        /* BUTTON OVERRIDE FOR INCOME MODE (HIJAU) */
+        .card.income-mode button:not(.btn-secondary) {
+            background: var(--color-income);
+            color: white;
+        }
+        .card.income-mode button:not(.btn-secondary):hover {
+            background: #208a38; 
+        }
+        
+        /* RESET BUTTON STYLE (MERAH) */
+        .btn-danger { background: var(--color-error); color: white; border: none; }
+        .btn-danger:hover { background: #b91c1c; transform: translateY(-2px); box-shadow: 0 4px 10px rgba(220, 38, 38, 0.3); }
+
+        /* WARNING BUTTON STYLE (ORANGE) */
+        .btn-warning { background: #f97316; color: white; border: none; }
+        .btn-warning:hover { background: #ea580c; transform: translateY(-2px); box-shadow: 0 4px 10px rgba(249, 115, 22, 0.3); }
+
+
+        .input-wrapper { position: relative; margin-bottom: 18px; margin-top: 8px; }
+        .input-wrapper input { margin: 0; padding-right: 40px; }
+        .input-wrapper .dropdown-icon { position: absolute; right: 15px; top: 50%; transform: translateY(-50%); pointer-events: none; color: var(--color-text-muted); font-size: 16px; transition: color 0.3s; }
+        .input-wrapper input:focus + .dropdown-icon { color: var(--color-accent-gold); }
+        
+        /* NOTIFICATION POPUP */
+        .notify-popup { position: fixed; top: 30px; right: 30px; color: white; padding: 16px 25px; border-radius: 12px; font-weight: 600; z-index: 9999; opacity: 0; transform: translateY(-15px); animation: fadeInOut 2.5s ease forwards; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
+        @keyframes fadeInOut { 0% { opacity: 0; transform: translateY(-15px); } 10% { opacity: 1; transform: translateY(0); } 85% { opacity: 1; transform: translateY(0); } 100% { opacity: 0; transform: translateY(-15px); } }
+        
+        .chart-grid { display: grid; grid-template-columns: 1fr; gap: 20px; }
+        .chart-container { padding: 20px; background: var(--color-card-background); border-radius: 18px; border: 1px solid var(--color-border-subtle); }
+        @media (min-width: 600px) { .chart-grid { grid-template-columns: 1fr 1fr; } .chart-grid > .full-width { grid-column: 1 / 3; } }
+        table { width: 100%; margin-top: 25px; border-collapse: separate; border-spacing: 0; font-size: 14px; border-radius: 10px; overflow: hidden; }
+        th { background: var(--color-table-header); padding: 15px 20px; text-align: left; font-weight: 700; color: var(--color-accent-gold); text-transform: uppercase; letter-spacing: 0.5px; }
+        th:first-child { border-top-left-radius: 10px; }
+        th:last-child { border-top-right-radius: 10px; }
+        td { padding: 15px 20px; border-bottom: 1px solid var(--color-border-subtle); color: var(--color-text-light); }
+        tr:last-child td { border-bottom: none; }
+        tbody tr:hover { background-color: #333333; transition: background-color 0.2s ease; }
+
+        /* --- CSS ANIMASI UANG TERBANG --- */
+        .money-rain-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            overflow: hidden;
+            z-index: 9000;
+        }
+
+        .coin {
+            position: absolute;
+            font-size: 24px;
+            opacity: 0;
+            animation: flyAndFade 2.0s ease-out forwards;
+        }
+
+        @keyframes flyAndFade {
+            0% {
+                transform: translate(0, 0) rotate(0deg);
+                opacity: 1;
+            }
+            50% {
+                opacity: 1;
+            }
+            100% {
+                transform: translate(var(--x), var(--y)) rotate(var(--rot));
+                opacity: 0;
+            }
+        }
+
+        /* --- CSS GLOBAL FLASH EFFECT (BORDER FLASH) --- */
+        .global-flash-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 5000;
+            pointer-events: none;
+            opacity: 0;
+            --flash-color: transparent; 
+        }
+
+        .flash-in {
+            opacity: 1; 
+            /* Memicu animasi. Durasi 1.5s, delay 0.1s */
+            animation: borderFlashOut 1.5s ease-in 0.1s forwards; 
+        }
+
+        @keyframes borderFlashOut {
+            0% {
+                box-shadow: 0 0 0 0px transparent;
+            }
+            10% {
+                /* PENTING: Melebar dan menggunakan variabel warna */
+                box-shadow: 0 0 0 40px var(--flash-color); /* Meningkatkan ukuran shadow menjadi 40px agar lebih terlihat */
+                opacity: 1;
+            }
+            100% {
+                box-shadow: 0 0 0 80px transparent; /* Memudar lebih jauh */
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+
+<body>
+<div id="app">
+
+    <div 
+        v-if="showGlobalFlash"
+        :class="{'flash-in': flashState === 'in'}"
+        class="global-flash-overlay"
+        :style="{'--flash-color': flashType === 'income' ? var_color_income : var_color_expense}"
+    ></div>
+
+    <div v-if="showMoneyAnimation" class="money-rain-container">
+        <div v-for="n in 50" :key="n" class="coin" :style="getAnimationDelay(n, animationStartPos.x, animationStartPos.y)">💰</div>
+    </div>
+
+    <div v-if="notify" class="notify-popup" :style="{background: notifyIsError ? var_color_error : var_color_income}">
+        {{ notify }}
+    </div>
+
+    <header v-if="isLoggedIn">
+        <h2 style="margin-bottom:0; display:flex; align-items:center; justify-content:center;">
+            <span style="font-size: 36px; margin-right: 10px;">{{ user.avatar }}</span>
+            FinTrack
+        </h2>
+        <nav style="text-align:center; margin-top:15px; margin-bottom: 20px;">
+            <button @click="changeView('Dashboard')" :class="{'btn-secondary': currentView !== 'Dashboard'}" style="width: auto; margin: 0 5px;">Dashboard</button>
+            <button @click="changeView('Transactions')" :class="{'btn-secondary': currentView !== 'Transactions'}" style="width: auto; margin: 0 5px;">Transaksi</button>
+            <button @click="changeView('Account')" class="btn-secondary" style="width: auto; margin: 0 5px;">Edit Akun</button>
+            <button @click="logout" class="btn-secondary" style="width: auto; margin: 0 5px;">Logout</button>
+        </nav>
+    </header>
+
+    <div v-if="currentView === 'Login'" class="card" style="max-width:400px; margin: 50px auto;">
+        <h3 style="text-align: center; color: var(--color-accent-gold);">Login FinTrack</h3>
+        <label for="login-username">Username</label>
+        <input id="login-username" type="text" v-model="loginForm.username" placeholder="Masukkan username">
+
+        <label for="login-password">Password</label>
+        <input id="login-password" type="password" v-model="loginForm.password" placeholder="Masukkan password" @keyup.enter="handleLogin">
+
+        <button @click="handleLogin">Masuk</button>
+        
+        <button @click="changeView('CreateAccount')" class="btn-secondary" style="margin-top:20px;">
+            Buat Akun Baru
+        </button>
+        
+        <p style="text-align:center; font-size:12px; color:var(--color-text-muted); margin-top:20px;">
+            *Jika belum pernah membuat akun, gunakan **admin**/**123**
+        </p>
+    </div>
+
+    <div v-if="currentView === 'CreateAccount'" class="card" style="max-width:400px; margin: 50px auto;">
+        <h3 style="text-align: center; color: var(--color-accent-gold);">Buat Akun Baru</h3>
+        
+        <label for="new-username">Username</label>
+        <input id="new-username" type="text" v-model="newAccount.username" placeholder="Masukkan username baru">
+
+        <label for="new-password">Password</label>
+        <input id="new-password" type="password" v-model="newAccount.password" placeholder="Masukkan password baru">
+        
+        <label style="margin-bottom: 10px;">Pilih Avatar: <span style="font-size: 24px;">{{ newAccount.avatar }}</span></label>
+        <div style="display: flex; gap: 10px; margin-bottom: 20px; justify-content: space-around;">
+            <button v-for="a in ['💰', '📊', '🚀', '⭐', '💻']" :key="a" 
+                    @click="newAccount.avatar = a" 
+                    :class="{'btn-secondary': newAccount.avatar !== a}"
+                    style="width: 20%; max-width: 50px; height: 50px; font-size: 24px; padding: 0; border-radius: 50%;">
+                {{ a }}
+            </button>
+        </div>
+
+        <button @click="createAccount">Buat Akun</button>
+        <button @click="changeView('Login')" class="btn-secondary">Kembali ke Login</button>
+    </div>
+
+    <div v-if="currentView === 'Dashboard'" class="card">
+        <h3 style="margin-bottom: 10px;">Ringkasan Keuangan</h3>
+
+        <div style="display: flex; justify-content: flex-start; align-items: center; margin-bottom: 20px; gap: 10px;">
+            <label for="chart-period" style="margin-top: 0; width: auto; font-size: 16px; font-weight: 700; color: var(--color-text-light);">Lihat Data:</label>
+            <select id="chart-period" v-model="chartPeriod" @change="renderDashboardCharts" style="width: 180px; margin: 0; padding: 10px;">
+                <option value="30d">30 Hari Terakhir (Harian)</option>
+                <option value="6m">6 Bulan Terakhir (Bulanan)</option>
+                <option value="1y">1 Tahun Terakhir (Bulanan)</option>
+            </select>
+        </div>
+        <div class="chart-grid">
+            <div class="chart-container full-width">
+                <h4 style="color:var(--color-text-light); font-size:18px; margin-bottom:10px;">Pemasukan vs Pengeluaran ({{ chartPeriod === '30d' ? 'Harian' : 'Bulanan' }})</h4>
+                <canvas id="chart-monthly-flow"></canvas>
+            </div>
+            <div class="chart-container">
+                <h4 style="color:var(--color-text-light); font-size:18px; margin-bottom:10px;">Distribusi Pengeluaran</h4>
+                <canvas id="chart-category"></canvas>
+            </div>
+            <div class="chart-container">
+                <h4 style="color:var(--color-text-light); font-size:18px; margin-bottom:10px;">Netto Keuangan ({{ chartPeriod === '30d' ? 'Harian' : 'Bulanan' }})</h4>
+                <canvas id="chart-netto-flow"></canvas>
+            </div>
+        </div>
+    </div>
+    <div v-if="currentView === 'Transactions'">
+        <div class="card" :class="{'income-mode': form.type === 'income', 'expense-mode': form.type === 'expense'}">
+            <h3 style="font-size:20px; font-weight:700; margin-bottom:10px;">Tambah Transaksi</h3>
+
+            <label for="transaction-type">Jenis Transaksi</label>
+            <select id="transaction-type" v-model="form.type" @change="form.category = ''">
+                <option value="income">Pemasukan</option>
+                <option value="expense">Pengeluaran</option>
+            </select>
+
+            <label for="transaction-category">Kategori</label>
+            <div class="input-wrapper">
+                <input
+                    id="transaction-category"
+                    list="category-suggestions"
+                    v-model="form.category"
+                    type="text"
+                    placeholder="Ketik atau pilih kategori..."
+                >
+                <span class="dropdown-icon">▼</span>
+            </div>
+
+            <datalist id="category-suggestions">
+                <option v-for="cat in filteredCategories" :key="cat" :value="cat"></option>
+            </datalist>
+
+            <label for="transaction-amount">Nominal</label>
+            <input
+                id="transaction-amount"
+                type="text"
+                inputmode="numeric" 
+                placeholder="Masukkan jumlah (contoh: 1.500.000)"
+                v-model="form.amount"
+                @input="formatInputAmount"
+            >
+
+            <label for="transaction-date">Tanggal</label>
+            <input id="transaction-date" type="date" v-model="form.date">
+
+            <button @click="addTx">Simpan Transaksi</button>
+        </div>
+
+        <div class="card" style="margin-top:30px;">
+            <h3 style="font-size:20px; font-weight:700; margin-bottom:10px;">Daftar Transaksi</h3>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Jenis</th>
+                        <th>Kategori</th>
+                        <th>Nominal</th>
+                        <th>Tanggal</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr v-for="t in transactions" :key="t.id">
+                        <td :style="{color: t.type === 'income' ? var_color_income : var_color_expense, fontWeight:'600'}">
+                            {{ t.type === 'income' ? 'Pemasukan' : 'Pengeluaran' }}
+                        </td>
+                        <td>{{ t.category }}</td>
+                        <td style="font-weight:600;">Rp. {{ t.amount }}</td>
+                        <td>{{ formatDate(t.date) }}</td>
+                    </tr>
+
+                    <tr v-if="transactions.length === 0">
+                        <td colspan="4" style="text-align:center; padding:25px; color:var(--color-text-muted);">
+                            Belum ada data transaksi yang tersimpan.
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div v-if="currentView === 'Account'" class="card" style="max-width:400px; margin: 50px auto;">
+        <h3 style="text-align: center; color: var(--color-accent-gold);">Pengaturan Akun</h3>
+        
+        <label>Username Anda (Tidak Dapat Diganti)</label>
+        <input type="text" :value="user.username" disabled style="background-color: #333333; cursor: default;">
+
+        <label for="edit-password">Ganti Password Baru</label>
+        <input id="edit-password" type="password" v-model="user.password" placeholder="Masukkan password baru">
+        
+        <label style="margin-bottom: 10px;">Pilih Avatar: <span style="font-size: 24px;">{{ user.avatar }}</span></label>
+        <div style="display: flex; gap: 10px; margin-bottom: 20px; justify-content: space-around;">
+            <button v-for="a in ['💰', '📊', '🚀', '⭐', '💻']" :key="a" 
+                    @click="user.avatar = a" 
+                    :class="{'btn-secondary': user.avatar !== a}"
+                    style="width: 20%; max-width: 50px; height: 50px; font-size: 24px; padding: 0; border-radius: 50%;">
+                {{ a }}
+            </button>
+        </div>
+
+        <button @click="updateAccount">Simpan Perubahan</button>
+        <button @click="changeView('Dashboard')" class="btn-secondary">Batalkan</button>
+        
+        <hr style="border-top: 1px solid var(--color-border-subtle); margin: 30px 0 20px 0;">
+
+        <button @click="resetTransactionsOnly" class="btn-warning">
+            🗑️ Hapus Semua Data **Transaksi** Saja
+        </button>
+        
+        <p style="text-align:center; font-size:12px; color:var(--color-text-muted); margin-top:10px; margin-bottom:20px;">
+            (Menghapus transaksi, **Akun tetap aman**)
+        </p>
+        
+        <button @click="resetDataAndAccount" class="btn-danger">
+            ⚠️ Reset **Akun** dan Semua Data Total
+        </button>
+        
+    </div>
+
+</div>
+
+<script>
+    // --- KONSTANTA PERSISTENSI DATA ---
+    const DB_STORAGE_KEY = 'fintrack_sqlite_db'; 
+    const USER_STORAGE_KEY = 'fintrack_user';
+    const LOGIN_STORAGE_KEY = 'fintrack_logged_in';
+
+    // --- FUNGSI PERSISTENSI KHUSUS SQL.JS (Tidak Berubah) ---
+    function saveDatabase(db) {
+        try {
+            const data = db.export(); 
+            const binaryString = String.fromCharCode.apply(null, data);
+            localStorage.setItem(DB_STORAGE_KEY, binaryString);
+        } catch (e) {
+            console.error("Error saving DB:", e);
+        }
+    }
+
+    function loadDatabase(SQL) {
+        const storedData = localStorage.getItem(DB_STORAGE_KEY);
+        if (storedData) {
+            const buffer = new Uint8Array(storedData.length);
+            for (let i = 0; i < storedData.length; i++) {
+                buffer[i] = storedData.charCodeAt(i);
+            }
+            return new SQL.Database(buffer);
+        }
+        return new SQL.Database();
+    }
+
+    // --- FUNGSI CHARTING YANG DIMODIFIKASI TOTAL ---
+    
+    function getChartData(transactions, period, vm) {
+        const categoryTotals = {};
+        let dataSeries = {}; // Akan menyimpan data harian atau bulanan
+        let isDaily = period === '30d';
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0); 
+        
+        let startDate = new Date(today);
+
+        // 1. Tentukan rentang waktu berdasarkan periode
+        if (period === '1y') {
+            startDate.setFullYear(today.getFullYear() - 1);
+        } else if (period === '6m') {
+            startDate.setMonth(today.getMonth() - 5);
+        } else { // 30d
+            startDate.setDate(today.getDate() - 29); 
+        }
+
+        // 2. Inisialisasi dataSeries
+        let currentDate = new Date(startDate);
+        currentDate.setHours(0, 0, 0, 0);
+
+        while (currentDate <= today) {
+            let key, label;
+
+            if (isDaily) {
+                key = currentDate.toISOString().split('T')[0];
+                label = currentDate.toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit' });
+                currentDate.setDate(currentDate.getDate() + 1);
+            } else { // Bulanan (6m atau 1y)
+                // Kunci adalah Bulan-Tahun
+                key = currentDate.toLocaleDateString('id-ID', { month: 'short', year: '2-digit' });
+                label = key;
+                // Pindah ke bulan berikutnya
+                currentDate.setMonth(currentDate.getMonth() + 1);
+                // Penting: Reset hari ke 1 untuk menghindari skip bulan (misal dari 31 Jan ke 3 Mar)
+                currentDate.setDate(1); 
+            }
+            
+            dataSeries[key] = { label, income: 0, expense: 0, net: 0 };
+        }
+        
+        // Perbaiki jika rentang bulanan terpotong di bulan akhir karena currentDate.setDate(1)
+        if (!isDaily && Object.keys(dataSeries).length === 0) {
+             const key = today.toLocaleDateString('id-ID', { month: 'short', year: '2-digit' });
+             dataSeries[key] = { label: key, income: 0, expense: 0, net: 0 };
+        }
+
+
+        // 3. Agregasi data transaksi
+        transactions.forEach(t => {
+            const txDate = new Date(t.date);
+            const amount = t.numericAmount;
+            
+            // Tentukan kunci agregasi
+            let key;
+            if (isDaily) {
+                key = t.date; // YYYY-MM-DD
+            } else {
+                key = txDate.toLocaleDateString('id-ID', { month: 'short', year: '2-digit' });
+            }
+
+            // Agregasi ke dalam dataSeries jika dalam rentang waktu yang dipilih
+            if (dataSeries[key]) {
+                if (t.type === 'income') {
+                    dataSeries[key].income += amount;
+                    dataSeries[key].net += amount;
+                } else {
+                    dataSeries[key].expense += amount;
+                    dataSeries[key].net -= amount;
+                }
+            }
+            
+            // Agregasi Kategori (selalu dihitung dari SEMUA transaksi pengeluaran)
+            if (t.type === 'expense' && t.category) {
+                categoryTotals[t.category] = (categoryTotals[t.category] || 0) + amount;
+            }
+        });
+        
+        // 4. Konversi ke array terurut
+        const seriesArray = Object.values(dataSeries)
+            // Sorting kembali untuk memastikan urutan benar (terutama untuk bulanan)
+            .sort((a, b) => {
+                const dateA = isDaily ? new Date(a.label.split('/').reverse().join('-')) : new Date('01 ' + a.label);
+                const dateB = isDaily ? new Date(b.label.split('/').reverse().join('-')) : new Date('01 ' + b.label);
+                return dateA - dateB;
+            });
+
+
+        // 5. Agregasi kategori (untuk grafik donut)
+        const sortedCategories = Object.entries(categoryTotals)
+            .sort(([, a], [, b]) => b - a)
+            .slice(0, 5); 
+
+        return { seriesArray, sortedCategories, isDaily };
+    }
+
+
+    function renderCharts(transactions, vm) {
+        // Ambil data berdasarkan periode yang dipilih
+        const { seriesArray, sortedCategories, isDaily } = getChartData(transactions, vm.chartPeriod, vm); 
+
+        const labels = seriesArray.map(data => data.label); 
+        const incomes = seriesArray.map(data => data.income);
+        const expenses = seriesArray.map(data => data.expense);
+        const netFlows = seriesArray.map(data => data.net);
+
+        if (vm.chartMonthlyFlow) vm.chartMonthlyFlow.destroy();
+        if (vm.chartCategory) vm.chartCategory.destroy();
+        if (vm.chartNettoFlow) vm.chartNettoFlow.destroy();
+        
+        // Sesuaikan rotasi label sumbu X agar rapi
+        const xRotation = isDaily ? 45 : 0; 
+
+        const chartOptions = { 
+            responsive: true, 
+            scales: { 
+                y: { beginAtZero: true, ticks: { color: vm.var_color_text_muted } }, 
+                x: { ticks: { color: vm.var_color_text_muted, maxRotation: xRotation, minRotation: xRotation } } 
+            }, 
+            plugins: { legend: { labels: { color: vm.var_color_text_light } } } 
+        };
+
+        // CHART 1: Pemasukan vs Pengeluaran
+        vm.chartMonthlyFlow = new Chart(document.getElementById('chart-monthly-flow').getContext('2d'), {
+            type: 'bar',
+            data: { 
+                labels: labels, 
+                datasets: [
+                    { label: 'Pemasukan', data: incomes, backgroundColor: vm.var_color_income }, 
+                    { label: 'Pengeluaran', data: expenses, backgroundColor: vm.var_color_expense }
+                ] 
+            },
+            options: chartOptions 
+        });
+
+        // CHART 2: Distribusi Pengeluaran
+        const categoryColors = ['#FFD700', '#C0C0C0', '#CD7F32', '#9370DB', '#8B0000'];
+        vm.chartCategory = new Chart(document.getElementById('chart-category').getContext('2d'), {
+            type: 'doughnut',
+            data: { 
+                labels: sortedCategories.map(([cat]) => cat), 
+                datasets: [
+                    { 
+                        data: sortedCategories.map(([, amount]) => amount), 
+                        backgroundColor: categoryColors, 
+                        borderColor: vm.var_color_card_background 
+                    }
+                ] 
+            },
+            options: { 
+                responsive: true, 
+                plugins: { legend: { position: 'right', labels: { color: vm.var_color_text_light } } } 
+            }
+        });
+
+        // CHART 3: Netto Keuangan
+        vm.chartNettoFlow = new Chart(document.getElementById('chart-netto-flow').getContext('2d'), {
+            type: 'line',
+            data: { 
+                labels: labels, 
+                datasets: [
+                    { 
+                        label: 'Netto Keuangan', 
+                        data: netFlows, 
+                        borderColor: vm.var_color_accent_gold, 
+                        backgroundColor: 'rgba(255, 215, 0, 0.2)', 
+                        fill: true, 
+                        tension: 0.3 
+                    }
+                ] 
+            },
+            options: chartOptions 
+        });
+    }
+
+    // --- LOGIKA UTAMA VUE.JS ---
+
+    initSqlJs({
+        locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.2/${file}`
+    }).then(SQL => {
+
+        const { createApp } = Vue;
+
+        createApp({
+            data() {
+                return {
+                    db: null,
+                    transactions: [],
+                    notify: "",
+                    notifyIsError: false,
+                    notifyTimeout: null,
+                    isLoggedIn: false,
+                    currentView: 'Login',
+                    loginForm: { username: '', password: '' },
+                    
+                    user: { username: 'admin', password: '123', avatar: '💰' },
+                    newAccount: { username: '', password: '', avatar: '💰' },
+                    
+                    form: { type: "income", category: "", amount: "", date: "" },
+                    
+                    // --- VARIABEL BARU UNTUK FILTER PERIODE CHART ---
+                    chartPeriod: '30d', // Default ke 30 Hari Terakhir
+
+                    showMoneyAnimation: false, 
+                    animationStartPos: { x: 0, y: 0 }, 
+                    
+                    showGlobalFlash: false,
+                    flashType: 'income', 
+                    flashState: 'out', 
+
+                    chartMonthlyFlow: null,
+                    chartCategory: null,
+                    chartNettoFlow: null,
+
+                    categories: {
+                        income: ["Gaji", "Bonus", "Investasi", "Hadiah", "Lain-lain"],
+                        expense: ["Makanan & Minuman", "Transportasi", "Tagihan Listrik/Air", "Internet/Telepon", "Hiburan", "Belanja Pakaian", "Edukasi", "Kesehatan", "Lain-lain"]
+                    }
+                };
+            },
+
+            computed: {
+                filteredCategories() { return this.categories[this.form.type] || []; },
+                var_color_income() { return getComputedStyle(document.documentElement).getPropertyValue('--color-income').trim(); },
+                var_color_expense() { return getComputedStyle(document.documentElement).getPropertyValue('--color-expense').trim(); },
+                var_color_error() { return getComputedStyle(document.documentElement).getPropertyValue('--color-error').trim(); },
+                var_color_text_light() { return getComputedStyle(document.documentElement).getPropertyValue('--color-text-light').trim(); },
+                var_color_text_muted() { return getComputedStyle(document.documentElement).getPropertyValue('--color-text-muted').trim(); },
+                var_color_card_background() { return getComputedStyle(document.documentElement).getPropertyValue('--color-card-background').trim(); },
+                var_color_accent_gold() { return getComputedStyle(document.documentElement).getPropertyValue('--color-accent-gold').trim(); },
+            },
+
+            methods: {
+                // --- General Utilities ---
+                showNotify(msg, isError = false) {
+                    if (this.notifyTimeout) { clearTimeout(this.notifyTimeout); }
+                    this.notify = msg;
+                    this.notifyIsError = isError;
+                    this.notifyTimeout = setTimeout(() => {
+                        this.notify = "";
+                    }, 2500);
+                },
+
+                formatInputAmount(e) {
+                    let raw = e.target.value.replace(/\D/g, "");
+                    let formatted = raw.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+                    this.form.amount = formatted;
+                },
+
+                formatDate(dateStr) {
+                    if (!dateStr) return '';
+                    const [year, month, day] = dateStr.split('-');
+                    return `${day}/${month}/${year}`;
+                },
+                
+                getAnimationDelay(n, startX, startY) {
+                    const targetX = Math.floor(Math.random() * 1000) - 500;
+                    const targetY = Math.floor(Math.random() * 500) + 100;
+                    const rotation = Math.floor(Math.random() * 720) - 360;
+
+                    const delay = (n * 0.01) + (Math.random() * 0.5);
+
+                    return {
+                        '--x': `${targetX}px`,
+                        '--y': `${targetY}px`,
+                        '--rot': `${rotation}deg`,
+                        'animation-delay': `${delay}s`,
+                        'left': `${startX}px`,
+                        'top': `${startY}px`,
+                    };
+                },
+
+                // --- User Management & Routing ---
+                loadUserData() {
+                    const userData = JSON.parse(localStorage.getItem(USER_STORAGE_KEY));
+                    if (userData) {
+                        this.user.username = userData.username;
+                        this.user.password = userData.password;
+                        this.user.avatar = userData.avatar;
+                    }
+                },
+
+                saveUserData() {
+                    localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(this.user));
+                },
+
+                // --- FUNGSI BARU UNTUK MERENDER ULANG CHART ---
+                renderDashboardCharts() {
+                    // Hanya merender ulang chart jika di Dashboard
+                    if (this.currentView === 'Dashboard') {
+                         this.loadTx();
+                         this.$nextTick(() => {
+                            renderCharts(this.transactions, this);
+                        });
+                    }
+                },
+                
+                changeView(view) {
+                    if (view === 'Dashboard') {
+                        // Memuat dan merender chart saat masuk ke Dashboard
+                        this.renderDashboardCharts();
+                    } else {
+                        // Menghancurkan chart saat pindah view
+                        if (this.chartMonthlyFlow) this.chartMonthlyFlow.destroy();
+                        if (this.chartCategory) this.chartCategory.destroy();
+                        if (this.chartNettoFlow) this.chartNettoFlow.destroy();
+                    }
+                    this.currentView = view;
+                },
+
+                handleLogin() {
+                    const { username, password } = this.loginForm;
+                    
+                    if (username === this.user.username && password === this.user.password) {
+                        this.isLoggedIn = true;
+                        localStorage.setItem(LOGIN_STORAGE_KEY, 'true');
+                        this.changeView('Dashboard');
+                        this.showNotify(`Selamat datang, ${this.user.username}!`, false);
+                        this.loginForm = { username: '', password: '' };
+                    } else {
+                        this.showNotify('Username atau Password salah!', true);
+                    }
+                },
+
+                createAccount() {
+                    if (this.newAccount.username.length < 3 || this.newAccount.password.length < 3) {
+                        this.showNotify('Username & Password minimal 3 karakter.', true);
+                        return;
+                    }
+                    this.user.username = this.newAccount.username;
+                    this.user.password = this.newAccount.password;
+                    this.user.avatar = this.newAccount.avatar;
+                    this.saveUserData();
+                    
+                    this.newAccount = { username: '', password: '', avatar: '💰' };
+                    this.changeView('Login');
+                    this.showNotify('Akun berhasil dibuat! Silakan Login.', false);
+                },
+
+                updateAccount() {
+                    if (this.user.password.length < 3) {
+                        this.showNotify('Password minimal 3 karakter.', true);
+                        return;
+                    }
+                    this.saveUserData();
+                    this.showNotify('Akun berhasil diperbarui!', false);
+                    this.changeView('Dashboard');
+                },
+
+                logout() {
+                    this.isLoggedIn = false;
+                    localStorage.removeItem(LOGIN_STORAGE_KEY);
+                    this.changeView('Login');
+                    this.showNotify('Anda telah Logout.', false);
+                },
+
+                // --- RESET LOGIC (Tidak Berubah) ---
+                resetTransactionsOnly() {
+                    const isConfirmed = confirm("Yakin ingin MENGHAPUS SEMUA TRANSAKSI? Data akun (username/password) Anda TIDAK akan berubah.");
+                    if (isConfirmed) {
+                        this.db.run(`DELETE FROM transactions;`);
+                        saveDatabase(this.db);
+                        this.transactions = [];
+                        this.changeView('Dashboard');
+                        this.showNotify('Semua transaksi berhasil dihapus!', true);
+                    }
+                },
+
+                resetDataAndAccount() {
+                    const isConfirmed = confirm("PERINGATAN KERAS! Tindakan ini akan menghapus SEMUA data transaksi dan me-reset akun Anda ke default (admin/123). Lanjutkan?");
+                    if (isConfirmed) {
+                        this.db.run(`DELETE FROM transactions;`);
+                        saveDatabase(this.db);
+                        this.transactions = [];
+                        
+                        this.user.username = 'admin';
+                        this.user.password = '123';
+                        this.user.avatar = '💰';
+                        this.saveUserData();
+                        
+                        localStorage.removeItem(LOGIN_STORAGE_KEY);
+
+                        this.isLoggedIn = false;
+                        this.changeView('Login');
+                        this.showNotify('Semua data dan akun telah direset. Silakan login dengan admin/123.', true);
+                    }
+                },
+                
+                // --- Transaction Logic (Tidak Berubah) ---
+                addTx() {
+                    const { type, category, amount, date } = this.form;
+                    
+                    if (!category || !amount || !date) {
+                        this.showNotify("Data belum lengkap! Pastikan semua kolom terisi.", true);
+                        return;
+                    }
+                    
+                    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+                        this.showNotify("Format tanggal tidak valid (harus YYYY-MM-DD).", true);
+                        return;
+                    }
+
+                    this.db.run(
+                        `INSERT INTO transactions (type, category, amount, date)
+                        VALUES (?, ?, ?, ?)`,
+                        [type, category, amount, date]
+                    );
+
+                    saveDatabase(this.db);
+                    this.loadTx(); // Muat ulang data transaksi
+
+                    // LOGIKA GLOBAL FLASH
+                    this.flashType = type;
+                    this.showGlobalFlash = true;
+                    this.flashState = 'in'; 
+                    setTimeout(() => { this.flashState = 'out'; }, 100); 
+                    setTimeout(() => { this.showGlobalFlash = false; }, 1600); 
+                    
+                    // LOGIKA ANIMASI UANG TERBANG
+                    const transactionCard = document.querySelector('div[v-if="currentView === \'Transactions\'"] .card');
+                    const btn = transactionCard ? transactionCard.querySelector('button:not(.btn-secondary)') : null;
+                    
+                    if (btn) {
+                        const rect = btn.getBoundingClientRect();
+                        this.animationStartPos = {
+                            x: rect.left + (rect.width / 2),
+                            y: rect.top + (rect.height / 2)
+                        };
+                    } else {
+                        this.animationStartPos = { x: window.innerWidth / 2, y: 300 };
+                    }
+                    
+                    if (type === 'income') {
+                        this.showMoneyAnimation = true;
+                        setTimeout(() => { this.showMoneyAnimation = false; }, 2000); 
+                    }
+
+                    this.form = { type: "income", category: "", amount: "", date: "" };
+                    this.showNotify("Transaksi berhasil ditambahkan!", false);
+                },
+
+                loadTx() {
+                    if (!this.db) return;
+                    
+                    const result = this.db.exec("SELECT * FROM transactions ORDER BY date DESC");
+
+                    if (result.length === 0) {
+                        this.transactions = [];
+                        return;
+                    }
+
+                    this.transactions = result[0].values.map(r => ({
+                        id: r[0],
+                        type: r[1],
+                        category: r[2],
+                        amount: r[3],
+                        date: r[4],
+                        numericAmount: parseFloat(r[3].replace(/\./g, '')) || 0
+                    }));
+                },
+            },
+
+            mounted() {
+                this.db = loadDatabase(SQL);
+                
+                this.db.run(`
+                    CREATE TABLE IF NOT EXISTS transactions (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        type TEXT,
+                        category TEXT,
+                        amount TEXT,
+                        date TEXT
+                    );
+                `);
+                
+                this.loadUserData();
+
+                if (localStorage.getItem(LOGIN_STORAGE_KEY) === 'true') {
+                    this.isLoggedIn = true;
+                    this.currentView = 'Dashboard';
+                }
+
+                this.loadTx();
+                saveDatabase(this.db); 
+            }
+        }).mount("#app");
+
+    });
+</script>
+
+</body>
+</html>
